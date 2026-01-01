@@ -1,0 +1,206 @@
+# Resolute DNS Proxy Configuration
+# Copy this file to config.toml and customize for your needs.
+
+[server]
+# Address to listen on (UDP and TCP)
+listen = "127.0.0.1:5353"
+# Log level: trace, debug, info, warn, error
+log_level = "info"
+
+[geoip]
+# GeoIP database configuration - choose ONE of the following options:
+
+# Option 1: Local file path
+# path = "/path/to/GeoLite2-Country.mmdb"
+
+# Option 2: Auto-download from URL (recommended)
+# The database will be cached locally and updated automatically
+url = "https://github.com/Loyalsoldier/geoip/releases/latest/download/Country.mmdb"
+
+# Proxy to use for downloading (references [proxies.xxx])
+# Useful when GitHub is blocked in your region
+# proxy = "us"
+
+# Cache directory for downloaded database (default: ~/.cache/resolute)
+# cache_dir = "/var/cache/resolute"
+
+# Auto-update interval in hours (0 = disabled, default: 24)
+update_interval_hours = 24
+
+# ============================================================================
+# DNS Cache
+# Caches DNS responses to reduce latency and upstream load
+# ============================================================================
+
+[cache]
+# Enable DNS caching (default: true)
+enabled = true
+# Maximum number of cached entries (default: 10000)
+max_entries = 10000
+# Minimum TTL in seconds - prevents caching very short TTLs (default: 60)
+min_ttl = 60
+# Maximum TTL in seconds - limits long TTLs (default: 86400 = 24 hours)
+max_ttl = 86400
+# TTL for negative responses (NXDOMAIN, etc.) in seconds (default: 300)
+negative_ttl = 300
+
+# ============================================================================
+# Domain List Source (v2fly/domain-list-community)
+# See: https://github.com/v2fly/domain-list-community
+# ============================================================================
+
+[domain_list]
+# URL for geosite dat file (protobuf format, xz compressed)
+# Default: https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat.xz
+# You can use a mirror or custom source:
+url = "https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat.xz"
+
+# Proxy to use for downloading (references [proxies.xxx])
+# Useful when GitHub is blocked in your region
+# proxy = "us"
+
+# Cache directory for downloaded lists (default: ~/.cache/resolute/domain-lists)
+# cache_dir = "/var/cache/resolute/domain-lists"
+
+# Auto-update interval in hours (0 = no caching, default: 24)
+update_interval_hours = 24
+
+# ============================================================================
+# Proxy Servers
+# Define proxy servers for forwarding DNS requests.
+# Supported protocols: http://, https://, socks5://
+# ============================================================================
+
+[proxies.hk]
+url = "http://127.0.0.1:8080"       # HTTP proxy
+outbound_ip = "1.2.3.4"             # Proxy's outbound IP (for EDNS Client Subnet)
+description = "Hong Kong HTTP proxy"
+
+[proxies.us]
+url = "socks5://127.0.0.1:1080"     # SOCKS5 proxy
+outbound_ip = "5.6.7.8"
+description = "US SOCKS5 proxy"
+
+[proxies.jp]
+url = "socks5://127.0.0.1:1081"
+outbound_ip = "9.10.11.12"
+description = "Japan SOCKS5 proxy"
+
+# ============================================================================
+# Upstream DNS Servers
+# ============================================================================
+
+# Cloudflare DNS (International) - via US proxy
+[upstreams.cloudflare]
+type = "doh"
+url = "https://1.1.1.1/dns-query"
+proxy = "us"                        # Use US proxy for this upstream
+edns_client_ip = "proxy"            # Use proxy's outbound IP for EDNS
+
+# Google DNS (International) - via US proxy
+[upstreams.google]
+type = "doh"
+url = "https://dns.google/dns-query"
+proxy = "us"
+edns_client_ip = "proxy"
+
+# Alibaba DNS (China) - direct connection
+[upstreams.alidns]
+type = "doh"
+url = "https://223.5.5.5/dns-query"
+# No proxy = direct connection
+edns_client_ip = "local"            # Use local IP for domestic queries
+
+# Tencent DNS (China) - direct connection
+[upstreams.dnspod]
+type = "doh"
+url = "https://doh.pub/dns-query"
+edns_client_ip = "local"
+
+# ============================================================================
+# Routing Rules (matched in order)
+# ============================================================================
+
+# -------------------- Domain List Support --------------------
+# You can load domain lists from v2fly/domain-list-community
+# See: https://github.com/v2fly/domain-list-community
+# Lists are automatically downloaded and cached for 24 hours.
+#
+# Available lists include:
+#   - cn: Chinese domains
+#   - geolocation-cn: Chinese related domains
+#   - geolocation-!cn: Non-Chinese domains
+#   - google, facebook, twitter, etc.
+# -------------------------------------------------------------
+
+# Use domain-list-community for China domains (recommended)
+[[rules]]
+domain_list = ["cn"]  # Loads from v2fly/domain-list-community
+upstream = "alidns"
+
+# Alternative: manually specify China domains (if you prefer not to download)
+# [[rules]]
+# domain_suffix = [
+#     ".cn",
+#     ".com.cn",
+#     ".net.cn",
+#     ".org.cn",
+#     ".baidu.com",
+#     ".qq.com",
+#     ".taobao.com",
+#     ".bilibili.com",
+#     ".zhihu.com",
+# ]
+# upstream = "alidns"
+
+# Non-China domains -> use international DNS (via proxy)
+# Option 1: Use domain-list-community (comprehensive list)
+[[rules]]
+domain_list = ["geolocation-!cn"]  # All non-China domains
+upstream = "cloudflare"
+
+# Option 2: Or specify individual services
+# [[rules]]
+# domain_list = ["google", "github", "twitter", "facebook"]
+# upstream = "cloudflare"
+
+# Option 3: Or manually specify domains
+# [[rules]]
+# domain_suffix = [
+#     ".google.com",
+#     ".youtube.com",
+#     ".github.com",
+#     ".twitter.com",
+#     ".facebook.com",
+# ]
+# upstream = "cloudflare"
+
+# Example: Use Japan proxy for pixiv (better routing)
+[[rules]]
+domain_suffix = [".pixiv.net", ".pximg.net"]
+upstream = "cloudflare"
+proxy = "jp"                        # Override: use Japan proxy
+edns_client_ip = "proxy"            # Use Japan proxy's outbound IP
+
+# Example: Use Hong Kong proxy for streaming services
+[[rules]]
+domain_keyword = ["netflix", "spotify"]
+upstream = "cloudflare"
+proxy = "hk"                        # Override: use HK proxy
+edns_client_ip = "proxy"
+
+# ============================================================================
+# Default/Fallback Configuration
+# Used when no domain rules match the query
+# ============================================================================
+
+[default]
+# Default upstream (used when no rule matches)
+upstream = "alidns"
+# Default proxy (optional, will use upstream's default if not set)
+# proxy = "us"
+# Default EDNS client IP mode: "none", "local", "proxy", or IP address
+edns_client_ip = "local"
+
+# Your local IP for EDNS (optional, auto-detected if not set)
+# local_ip = "192.168.1.100"
