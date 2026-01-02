@@ -92,6 +92,7 @@ fn init_logging(level: &str) -> Result<()> {
         .with_thread_ids(false)
         .with_file(false)
         .with_line_number(false)
+        .with_ansi(!cfg!(windows))
         .init();
 
     Ok(())
