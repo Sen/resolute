@@ -227,6 +227,7 @@ impl Router {
     }
 
     /// Get cache statistics
+    #[allow(dead_code)]
     pub fn cache_stats(&self) -> crate::cache::CacheStats {
         self.cache.stats()
     }

@@ -18,7 +18,7 @@ mod server;
 mod upstream;
 
 use anyhow::{Context, Result};
-use std::env;
+use clap::Parser;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{info, Level};
@@ -29,13 +29,20 @@ use crate::geoip::GeoIpLookup;
 use crate::router::Router;
 use crate::server::DnsServer;
 
+/// Resolute - A DNS proxy with DOH/DOT support, EDNS Client Subnet, and GeoIP-based routing.
+#[derive(Parser)]
+#[command(version, about)]
+struct Args {
+    /// Path to the configuration file
+    #[arg(short = 'c', long = "config", default_value = "config.toml")]
+    config: PathBuf,
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Parse command line arguments
-    let config_path = env::args()
-        .nth(1)
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("config.toml"));
+    let args = Args::parse();
+    let config_path = args.config;
 
     // Load configuration
     let config = Config::load(&config_path)

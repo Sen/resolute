@@ -72,6 +72,7 @@ impl DnsCache {
     }
 
     /// Create a disabled cache (always misses)
+    #[allow(dead_code)]
     pub fn disabled() -> Self {
         Self {
             cache: Cache::builder().max_capacity(0).expire_after(DnsExpiry).build(),
@@ -182,6 +183,7 @@ impl DnsCache {
     }
 
     /// Get cache statistics
+    #[allow(dead_code)]
     pub fn stats(&self) -> CacheStats {
         CacheStats {
             hits: self.hits.load(Ordering::Relaxed),
@@ -192,6 +194,7 @@ impl DnsCache {
 }
 
 /// Cache statistics
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct CacheStats {
     pub hits: u64,
@@ -201,6 +204,7 @@ pub struct CacheStats {
 
 impl CacheStats {
     /// Calculate hit rate percentage
+    #[allow(dead_code)]
     pub fn hit_rate(&self) -> f64 {
         let total = self.hits + self.misses;
         if total == 0 {
