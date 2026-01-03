@@ -71,7 +71,16 @@ impl DnsServer {
                     });
                 }
                 Err(e) => {
-                    error!("UDP recv error on {}: {}", addr, e);
+                    // On Windows, WSAECONNRESET (10054) occurs when a previous UDP send
+                    // received an ICMP "Port Unreachable" response. This is harmless and
+                    // happens when clients close their sockets before receiving responses.
+                    // We only log at debug level to avoid log spam.
+                    let is_connection_reset = e.raw_os_error() == Some(10054);
+                    if is_connection_reset {
+                        debug!("UDP recv ignored ICMP port unreachable on {}", addr);
+                    } else {
+                        error!("UDP recv error on {}: {}", addr, e);
+                    }
                 }
             }
         }
