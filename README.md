@@ -8,6 +8,7 @@ A DNS proxy with DoH/DoT support, EDNS Client Subnet, and GeoIP-based routing.
 
 - **DNS over HTTPS (DoH)** - Encrypted DNS queries
 - **DNS over TLS (DoT)** - Alternative encrypted DNS protocol
+- **IPv4/IPv6 Dual-Stack** - Listen on both IPv4 and IPv6 addresses
 - **EDNS Client Subnet** - Pass client IP for better CDN routing
 - **GeoIP Routing** - Route queries based on IP geolocation
 - **Domain Rules** - Support for v2fly/domain-list-community
@@ -53,8 +54,13 @@ cp config.example.toml config.toml
 
 ```toml
 [server]
-listen = "127.0.0.1:5353"  # Listen address
-log_level = "info"          # Log level
+# Single address
+listen = "127.0.0.1:5353"
+
+# Or dual-stack IPv4/IPv6
+listen = ["0.0.0.0:53", "[::]:53"]
+
+log_level = "info"  # trace, debug, info, warn, error
 
 [geoip]
 url = "https://github.com/Loyalsoldier/geoip/releases/latest/download/Country.mmdb"
@@ -113,13 +119,13 @@ upstream = "alidns"
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                        Client                               │
-│                    (UDP/TCP :5353)                          │
+│              (UDP/TCP, IPv4/IPv6 dual-stack)                │
 └─────────────────────┬───────────────────────────────────────┘
                       │
                       ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                      DNS Server                             │
-│                  (hickory-server)                           │
+│                (hickory-proto + tokio)                      │
 └─────────────────────┬───────────────────────────────────────┘
                       │
                       ▼
@@ -155,7 +161,7 @@ upstream = "alidns"
 
 | Component | Description |
 |-----------|-------------|
-| `server` | DNS server, listens on UDP/TCP |
+| `server` | DNS server, listens on UDP/TCP with IPv4/IPv6 dual-stack support |
 | `router` | Routing engine, selects upstream based on rules |
 | `upstream` | Upstream DNS client (DoH/DoT) |
 | `cache` | DNS response cache (moka) |
@@ -172,6 +178,24 @@ upstream = "alidns"
 - **rustls** - TLS implementation
 - **moka** - High-performance cache
 - **maxminddb** - GeoIP database
+
+## Testing
+
+Use `dig` to test the DNS server:
+
+```bash
+# Test IPv4
+dig @127.0.0.1 google.com -p 53
+
+# Test IPv6
+dig @::1 google.com -p 53
+
+# Query AAAA record (IPv6 address)
+dig @127.0.0.1 google.com AAAA
+
+# Use TCP instead of UDP
+dig @127.0.0.1 google.com +tcp
+```
 
 ## License
 
