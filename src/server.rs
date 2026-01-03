@@ -13,36 +13,48 @@ use crate::router::Router;
 
 /// DNS Server that listens on UDP and TCP
 pub struct DnsServer {
-    listen_addr: SocketAddr,
+    listen_addrs: Vec<SocketAddr>,
     router: Arc<Router>,
 }
 
 impl DnsServer {
-    pub fn new(listen_addr: SocketAddr, router: Arc<Router>) -> Self {
+    pub fn new(listen_addrs: Vec<SocketAddr>, router: Arc<Router>) -> Self {
         Self {
-            listen_addr,
+            listen_addrs,
             router,
         }
     }
 
-    /// Start the DNS server (both UDP and TCP)
+    /// Start the DNS server (both UDP and TCP on all addresses)
     pub async fn run(self: Arc<Self>) -> Result<()> {
-        let udp_server = self.clone();
-        let tcp_server = self.clone();
+        let mut handles = Vec::new();
 
-        // Start UDP and TCP listeners concurrently
-        tokio::try_join!(
-            udp_server.run_udp(),
-            tcp_server.run_tcp(),
-        )?;
+        // Start UDP and TCP listeners for each address
+        for addr in &self.listen_addrs {
+            let server = self.clone();
+            let addr = *addr;
+            handles.push(tokio::spawn(async move {
+                server.run_udp(addr).await
+            }));
+
+            let server = self.clone();
+            handles.push(tokio::spawn(async move {
+                server.run_tcp(addr).await
+            }));
+        }
+
+        // Wait for any listener to finish (which would be an error)
+        for handle in handles {
+            handle.await??;
+        }
 
         Ok(())
     }
 
-    /// Run UDP DNS server
-    async fn run_udp(self: Arc<Self>) -> Result<()> {
-        let socket = Arc::new(UdpSocket::bind(self.listen_addr).await?);
-        info!("UDP DNS server listening on {}", self.listen_addr);
+    /// Run UDP DNS server on a specific address
+    async fn run_udp(self: Arc<Self>, addr: SocketAddr) -> Result<()> {
+        let socket = Arc::new(UdpSocket::bind(addr).await?);
+        info!("UDP DNS server listening on {}", addr);
 
         let mut buf = vec![0u8; 4096];
         loop {
@@ -59,16 +71,16 @@ impl DnsServer {
                     });
                 }
                 Err(e) => {
-                    error!("UDP recv error: {}", e);
+                    error!("UDP recv error on {}: {}", addr, e);
                 }
             }
         }
     }
 
-    /// Run TCP DNS server
-    async fn run_tcp(self: Arc<Self>) -> Result<()> {
-        let listener = TcpListener::bind(self.listen_addr).await?;
-        info!("TCP DNS server listening on {}", self.listen_addr);
+    /// Run TCP DNS server on a specific address
+    async fn run_tcp(self: Arc<Self>, addr: SocketAddr) -> Result<()> {
+        let listener = TcpListener::bind(addr).await?;
+        info!("TCP DNS server listening on {}", addr);
 
         loop {
             match listener.accept().await {
@@ -82,7 +94,7 @@ impl DnsServer {
                     });
                 }
                 Err(e) => {
-                    error!("TCP accept error: {}", e);
+                    error!("TCP accept error on {}: {}", addr, e);
                 }
             }
         }

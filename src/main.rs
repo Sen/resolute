@@ -53,7 +53,9 @@ async fn main() -> Result<()> {
 
     info!("Starting Resolute DNS proxy");
     info!("Config loaded from: {:?}", config_path);
-    info!("Listening on: {}", config.server.listen);
+    for addr in &config.server.listen {
+        info!("Listening on: {}", addr);
+    }
 
     // Initialize GeoIP database (may download from URL)
     let geoip_proxy = config.geoip.proxy.as_ref()
@@ -63,14 +65,14 @@ async fn main() -> Result<()> {
         .context("Failed to initialize GeoIP database")?;
 
     // Initialize router (loads domain lists)
-    let listen_addr = config.server.listen;
+    let listen_addrs = config.server.listen.clone();
     let router = Router::new(config, geoip)
         .await
         .context("Failed to initialize router")?;
     let router = Arc::new(router);
 
     // Start DNS server
-    let server = Arc::new(DnsServer::new(listen_addr, router));
+    let server = Arc::new(DnsServer::new(listen_addrs, router));
     info!("DNS server starting...");
 
     server.run().await?;

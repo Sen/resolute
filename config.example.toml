@@ -2,8 +2,11 @@
 # Copy this file to config.toml and customize for your needs.
 
 [server]
-# Address to listen on (UDP and TCP)
-listen = "127.0.0.1:5353"
+# Addresses to listen on (UDP and TCP)
+# Can be a single address:
+#   listen = "127.0.0.1:5353"
+# Or multiple addresses for dual-stack IPv4/IPv6:
+listen = ["0.0.0.0:5353", "[::]:5353"]
 # Log level: trace, debug, info, warn, error
 log_level = "info"
 

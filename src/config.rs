@@ -27,16 +27,61 @@ pub struct Config {
 /// Server listening configuration
 #[derive(Debug, Deserialize)]
 pub struct ServerConfig {
-    /// Address to listen on (e.g., "127.0.0.1:53")
-    #[serde(default = "default_listen")]
-    pub listen: SocketAddr,
+    /// Addresses to listen on (e.g., ["127.0.0.1:53", "[::1]:53"])
+    /// Can be a single address string or an array of addresses
+    #[serde(default = "default_listen", deserialize_with = "deserialize_listen_addrs")]
+    pub listen: Vec<SocketAddr>,
     /// Log level (trace, debug, info, warn, error)
     #[serde(default = "default_log_level")]
     pub log_level: String,
 }
 
-fn default_listen() -> SocketAddr {
-    "127.0.0.1:53".parse().unwrap()
+fn default_listen() -> Vec<SocketAddr> {
+    vec!["127.0.0.1:53".parse().unwrap()]
+}
+
+/// Deserialize listen addresses from either a single string or an array
+fn deserialize_listen_addrs<'de, D>(deserializer: D) -> std::result::Result<Vec<SocketAddr>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::{self, SeqAccess, Visitor};
+    use std::fmt;
+
+    struct ListenAddrsVisitor;
+
+    impl<'de> Visitor<'de> for ListenAddrsVisitor {
+        type Value = Vec<SocketAddr>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a string or array of socket addresses")
+        }
+
+        fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            let addr: SocketAddr = value.parse().map_err(de::Error::custom)?;
+            Ok(vec![addr])
+        }
+
+        fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
+        where
+            A: SeqAccess<'de>,
+        {
+            let mut addrs = Vec::new();
+            while let Some(s) = seq.next_element::<String>()? {
+                let addr: SocketAddr = s.parse().map_err(de::Error::custom)?;
+                addrs.push(addr);
+            }
+            if addrs.is_empty() {
+                return Err(de::Error::custom("listen address list cannot be empty"));
+            }
+            Ok(addrs)
+        }
+    }
+
+    deserializer.deserialize_any(ListenAddrsVisitor)
 }
 
 fn default_log_level() -> String {
@@ -556,7 +601,7 @@ edns_client_ip = "proxy"
 "#;
 
         let config = Config::parse(toml).unwrap();
-        assert_eq!(config.server.listen.port(), 5353);
+        assert_eq!(config.server.listen[0].port(), 5353);
         assert_eq!(config.upstreams.len(), 3);
         assert_eq!(config.proxies.len(), 2);
         assert_eq!(config.rules.len(), 2);
